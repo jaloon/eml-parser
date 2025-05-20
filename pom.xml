@@ -10,6 +10,7 @@
     <packaging>jar</packaging>
     <name>Email(.eml) File Parser</name>
     <description>Email(.eml) File Parser with Java Mail API (outlook supported)</description>
+    <url>https://github.com/jaloon/eml-parser</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
