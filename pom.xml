@@ -6,7 +6,7 @@
 
     <groupId>io.github.jaloon</groupId>
     <artifactId>eml-parser</artifactId>
-    <version>1.6.7</version>
+    <version>1.6.7.1</version>
     <packaging>jar</packaging>
     <name>Email(.eml) File Parser</name>
     <description>Email(.eml) File Parser with Java Mail API (outlook supported)</description>

@@ -29,7 +29,9 @@ public class MultiPartParserTest {
 
     @Test
     public void testParse() throws IOException {
-        try (EmlMessage message = new EmlMessage(new File(resourcePath, "STMP_outlook.eml"))){
+        // String eml = "STMP_outlook.eml";
+        String eml = "WEB20250512092651.eml";
+        try (EmlMessage message = new EmlMessage(new File(resourcePath, eml))){
             List<MimePart> parts = MultiPartParser.parse(message);
             for (MimePart part : parts) {
                 if (part.isAttachment()) {

@@ -8,6 +8,7 @@ import javax.mail.internet.MimeUtility;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,7 +30,7 @@ public class MimePart implements Closeable {
         this.headers = new ArrayList<>();
         in.seek(partOffset);
         String line;
-        while ((line = in.readLine()) != null) {
+        while ((line = in.readLine(StandardCharsets.UTF_8)) != null) {
             if (line.isEmpty()) {
                 break;
             }
@@ -112,15 +113,16 @@ public class MimePart implements Closeable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("MimePart");
+        StringBuilder sb = new StringBuilder();
         if (attachment) {
-            sb.append("[Attachment filename=").append(filename).append("]");
-        }
-        if (multipart) {
-            sb.append("[Multipart boundary=").append(boundary).append("]");
+            sb.append("Attachment[").append(filename).append("]");
+        } else if (multipart) {
+            sb.append("Multipart[").append(boundary).append("]");
+        } else {
+            sb.append("MimePart");
         }
         for (String header : headers) {
-            sb.append("\n\t").append(header);
+            sb.append("\n  ").append(header);
         }
         sb.append("\n\n").append(body).append("\n");
         return sb.toString();

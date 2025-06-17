@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -117,6 +119,10 @@ public class MimeInputStream extends InputStream {
      * Reads a line of text.  A line is considered to be terminated by any one
      * of a line feed ('\n'), a carriage return ('\r'), or a carriage return
      * followed immediately by a linefeed.
+     * <p>
+     * 每个字节都转换为一个字符，方法是采用该字符的低八位字节值，并将该字符的高八位设置为零。
+     * 因此，此方法不支持完整的 Unicode 字符集。
+     * </p>
      *
      * @return A String containing the contents of the line, not including
      * any line-termination characters, or null if the end of the
@@ -132,6 +138,9 @@ public class MimeInputStream extends InputStream {
         }
         in.seek(pos);
         String line = in.readLine();
+        if (line == null) {
+            return null;
+        }
         long pointer = in.getFilePointer();
         if (pointer <= end) {
             pos = pointer;
@@ -139,6 +148,21 @@ public class MimeInputStream extends InputStream {
         }
         pos = end;
         return line.substring(0, (int) available);
+    }
+
+    /**
+     * 读取一行，并转换成指定编码
+     *
+     * @param charset 字符串编码
+     * @return 此文件文本的下一行，如果连一个字节也没有读取就已到达文件的末尾，则返回 null。
+     * @throws IOException 如果发生 I/O 错误
+     */
+    public synchronized String readLine(Charset charset) throws IOException {
+        String line = readLine();
+        if (line == null || charset == null || StandardCharsets.ISO_8859_1.equals(charset)) {
+            return line;
+        }
+        return new String(line.getBytes(StandardCharsets.ISO_8859_1), charset);
     }
 
     @Override
