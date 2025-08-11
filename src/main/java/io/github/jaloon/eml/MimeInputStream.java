@@ -251,12 +251,4 @@ public class MimeInputStream extends InputStream {
         }
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            this.forceClose();
-        } finally {
-            super.finalize();
-        }
-    }
 }
