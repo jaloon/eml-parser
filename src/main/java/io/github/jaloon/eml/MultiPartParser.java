@@ -43,11 +43,18 @@ public class MultiPartParser {
                 end = -1;
                 continue;
             }
-            if (line.endsWith(boundaryEnd) && start >= 0 && end > 0) {
-                parts.add(new MimePart(body, start, end));
+            if (line.endsWith(boundaryEnd)) {
+                if (start >= 0 && end > 0) {
+                    parts.add(new MimePart(body, start, end));
+                }
+                start = -1;
+                end = -1;
                 break;
             }
             end = body.getPosition();
+        }
+        if (start >= 0 && end > 0) {
+            parts.add(new MimePart(body, start, end));
         }
         return parts;
     }
