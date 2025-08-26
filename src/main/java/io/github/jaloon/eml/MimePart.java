@@ -59,8 +59,29 @@ public class MimePart implements Closeable {
         this.body = in.newStream(in.getPosition(), partEnd);
     }
 
+    /**
+     * Extracts a sub-header from the provided header string, starting after a specified search string.
+     * If the character immediately following the search string is a quote (either single or double),
+     * the method will extract the substring enclosed by the quotes. Otherwise, it extracts the remainder
+     * of the header after the search string.
+     *
+     * @param header the full header string to parse
+     * @param searchStr the string to search for in the header, after which the sub-header starts
+     * @return the extracted sub-header, or an empty string if the search string is not found
+     */
     private String subHeader(String header, String searchStr) {
-        return StringUtils.strip(header.substring(header.indexOf(searchStr) + searchStr.length()), "\"' ");
+        int index = header.indexOf(searchStr);
+        if (index < 0) {
+            return StringUtils.EMPTY;
+        }
+        int startIndex = index + searchStr.length();
+        char startChar = header.charAt(startIndex);
+        if (startChar != '"' && startChar != '\'') {
+            return header.substring(startIndex);
+        }
+        startIndex++;
+        int endIndex = header.indexOf(startChar, startIndex);
+        return header.substring(startIndex, endIndex);
     }
 
     public List<String> getHeaders() {
