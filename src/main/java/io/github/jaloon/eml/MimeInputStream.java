@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Mime 输入流
+ * MimeInputStream 类扩展了 InputStream，提供了对 MIME 编码文件的读取功能。
+ * 它支持从文件中读取特定部分的数据，并允许创建子流以访问文件的特定部分，支持多个输入流共享同一文件。
  */
 public class MimeInputStream extends InputStream {
     /**
@@ -42,10 +43,24 @@ public class MimeInputStream extends InputStream {
      */
     private final AtomicInteger refCount;
 
+    /**
+     * 构造一个新的 MimeInputStream 实例，用于从指定文件读取MIME类型的数据。
+     *
+     * @param file 作为输入源的文件
+     * @throws IOException 如果在打开文件或初始化流时发生I/O错误
+     */
     public MimeInputStream(File file) throws IOException {
         this(new RandomAccessFile(file, "r"), 0, file.length(), new AtomicInteger(1));
     }
 
+    /**
+     * 构造一个新的 MimeInputStream 实例，用于从指定的 RandomAccessFile 读取数据。
+     *
+     * @param in 作为输入源的 RandomAccessFile
+     * @param start 流开始位置
+     * @param size 流大小
+     * @param refCount 引用计数，用于跟踪当前流实例的引用数量
+     */
     private MimeInputStream(RandomAccessFile in, long start, long size, AtomicInteger refCount) {
         this.in = in;
         this.mark = start;
@@ -64,6 +79,11 @@ public class MimeInputStream extends InputStream {
             throw new IOException("Stream closed");
     }
 
+    /**
+     * 移动文件指针到指定位置
+     * @param offset 文件偏移
+     * @throws IOException 如果发生I/O错误
+     */
     public void seek(long offset) throws IOException {
         ensureOpen();
         pos = start + offset;
@@ -71,16 +91,22 @@ public class MimeInputStream extends InputStream {
     }
 
     /**
-     * Return the current position in the InputStream, as an
-     * offset from the beginning of the InputStream.
+     * Returns the current position in the stream, as an offset from the beginning of the stream.
      *
-     * @return the current position
+     * @return the current position in the stream
+     * @throws IOException if an I/O error occurs or the stream is closed
      */
     public long getPosition() throws IOException {
         ensureOpen();
         return pos - start;
     }
 
+    /**
+     * Returns the current position in the file, as an offset from the beginning of the file.
+     *
+     * @return the current position in the file
+     * @throws IOException if an I/O error occurs
+     */
     public long getFilePointer() throws IOException {
         ensureOpen();
         return pos;

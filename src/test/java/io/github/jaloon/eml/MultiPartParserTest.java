@@ -1,5 +1,7 @@
 package io.github.jaloon.eml;
 
+import io.github.jaloon.eml.parser.MultipartParser;
+import io.github.jaloon.eml.part.MimePart;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,11 +33,11 @@ public class MultiPartParserTest {
     public void testParse() throws IOException {
         // String eml = "STMP_outlook.eml";
         String eml = "WEB20250512092651.eml";
-        try (EmlMessage message = new EmlMessage(new File(resourcePath, eml))){
-            List<MimePart> parts = MultiPartParser.parse(message);
+        try (EmlMessage message = EmlMessage.of(new File(resourcePath, eml))){
+            List<MimePart> parts = MultipartParser.standard().parse(message);
             for (MimePart part : parts) {
                 if (part.isAttachment()) {
-                    String fileName = part.getFilename();
+                    String fileName = part.getAttachName();
                     System.out.println(fileName);
                     Files.copy(part.getInputStream(), Paths.get(resourcePath, fileName));
                 }
