@@ -77,7 +77,8 @@ public class StandardMimePart extends AbstractMimePart {
                     part.boundary = MimePart.getHeadItem(part.contentType, "boundary");
                     break;
                 }
-            } else if (header.startsWith("Content-Disposition:")) {
+            } else if (header.startsWith("Content-Disposition: attachment;")) {
+                // Content-Disposition: inline; filename="文件名" 为插入正文的图片或 emoji 表情
                 part.attachment = true;
                 part.filename = MimeUtility.decodeText(MimePart.getHeadItem(header, "filename"));
             } else if (header.startsWith("Content-Transfer-Encoding:")) {

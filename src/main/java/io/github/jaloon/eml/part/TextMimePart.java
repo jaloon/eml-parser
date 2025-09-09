@@ -1,7 +1,7 @@
 package io.github.jaloon.eml.part;
 
 import io.github.jaloon.eml.MimeInputStream;
-import sun.misc.IOUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -70,7 +70,7 @@ public class TextMimePart extends AbstractMimePart {
      * @throws IOException 如果在读取或解码内容时发生I/O错误
      */
     public String getContent() throws IOException {
-        return new String(IOUtils.readAllBytes(getInputStream()), getCharset());
+        return IOUtils.toString(getInputStream(), getCharset());
     }
 
 }
