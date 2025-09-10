@@ -1,6 +1,6 @@
 package io.github.jaloon.eml.part;
 
-import io.github.jaloon.eml.MimeInputStream;
+import io.github.jaloon.eml.io.MimeInputStream;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.mail.MessagingException;
@@ -141,11 +141,12 @@ public interface MimePart extends Closeable {
      * @see MimePartDataSource#getInputStream() for more details
      */
     default InputStream getInputStream() throws IOException {
-        if (isMultipart() || getTransferEncoding() == null) {
-            return getBody();
+        MimeInputStream body = getBody();
+        if (body.getSize() == 0 || isMultipart() || getTransferEncoding() == null) {
+            return body;
         }
         try {
-            return MimeUtility.decode(getBody(), getTransferEncoding());
+            return MimeUtility.decode(body, getTransferEncoding());
         } catch (MessagingException e) {
             throw new IOException(e.getMessage(), e);
         }

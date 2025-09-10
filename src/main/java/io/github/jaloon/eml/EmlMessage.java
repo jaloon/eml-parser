@@ -1,5 +1,6 @@
 package io.github.jaloon.eml;
 
+import io.github.jaloon.eml.io.MimeInputStream;
 import io.github.jaloon.eml.part.MimePart;
 import io.github.jaloon.eml.part.MultiMimePart;
 
@@ -98,7 +99,7 @@ public class EmlMessage extends MultiMimePart {
      * @throws IOException 如果读取文件时发生 I/O 错误
      */
     public static EmlMessage of(File file) throws IOException {
-        MimeInputStream inputStream = new MimeInputStream(file);
+        MimeInputStream inputStream = MimeInputStream.of(file);
         List<String> headers = MimePart.parseHeaders(inputStream);
         MimeInputStream body = inputStream.newStream(inputStream.getPosition(), file.length());
         EmlMessage emlMessage = new EmlMessage(headers, body);

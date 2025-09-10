@@ -1,19 +1,16 @@
-package io.github.jaloon.eml;
+package io.github.jaloon.eml.io;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.RandomAccessFile;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * MimeInputStream 类扩展了 InputStream，提供了对 MIME 编码文件的读取功能。
- * 它支持从文件中读取特定部分的数据，并允许创建子流以访问文件的特定部分，支持多个输入流共享同一文件。
+ * 文件共享MIME输入流，用于从文件中读取MIME类型的数据，并支持多个实例共享同一底层文件。
+ * 此类扩展了 {@link MimeInputStream} 并提供了对文件内容的随机访问能力。
  */
-public class MimeInputStream extends InputStream {
+class FileSharedMimeInputStream extends MimeInputStream {
     /**
      * 包含数据的文件，由所有相关共享缓冲输入流共享。
      */
@@ -49,19 +46,19 @@ public class MimeInputStream extends InputStream {
      * @param file 作为输入源的文件
      * @throws IOException 如果在打开文件或初始化流时发生I/O错误
      */
-    public MimeInputStream(File file) throws IOException {
+    public FileSharedMimeInputStream(File file) throws IOException {
         this(new RandomAccessFile(file, "r"), 0, file.length(), new AtomicInteger(1));
     }
 
     /**
      * 构造一个新的 MimeInputStream 实例，用于从指定的 RandomAccessFile 读取数据。
      *
-     * @param in 作为输入源的 RandomAccessFile
-     * @param start 流开始位置
-     * @param size 流大小
+     * @param in       作为输入源的 RandomAccessFile
+     * @param start    流开始位置
+     * @param size     流大小
      * @param refCount 引用计数，用于跟踪当前流实例的引用数量
      */
-    private MimeInputStream(RandomAccessFile in, long start, long size, AtomicInteger refCount) {
+    private FileSharedMimeInputStream(RandomAccessFile in, long start, long size, AtomicInteger refCount) {
         this.in = in;
         this.mark = start;
         this.pos = start;
@@ -72,6 +69,28 @@ public class MimeInputStream extends InputStream {
     }
 
     /**
+     * 创建一个新的MimeInputStream实例，用于从当前流中指定的范围内读取数据。
+     *
+     * @param start 要创建的新流的起始位置（包含），相对于当前流的开始位置，单位是字节。必须非负。
+     * @param end   要创建的新流的结束位置（不包含），单位是字节。如果为-1，则新流将与此流在相同的位置结束。
+     * @return 返回一个表示新创建的MimeInputStream实例，如果请求的范围无效或为空，则返回EmptyMimeInputStream实例。
+     * @throws IOException 如果在尝试创建新流时发生I/O错误，或者当前流已被关闭。
+     */
+    public MimeInputStream newStream(long start, long end) throws IOException {
+        ensureOpen();
+        if (start < 0)
+            throw new IllegalArgumentException("start < 0");
+        if (end == -1)
+            end = this.size;
+        long size = end - start;
+        if (size <= 0) {
+            return EmptyMimeInputStream.getInstance();
+        }
+        this.refCount.getAndIncrement();
+        return new FileSharedMimeInputStream(this.in, this.start + start, size, this.refCount);
+    }
+
+    /**
      * Check to make sure that this stream has not been closed
      */
     private void ensureOpen() throws IOException {
@@ -79,82 +98,36 @@ public class MimeInputStream extends InputStream {
             throw new IOException("Stream closed");
     }
 
-    /**
-     * 移动文件指针到指定位置
-     * @param offset 文件偏移
-     * @throws IOException 如果发生I/O错误
-     */
+    @Override
     public void seek(long offset) throws IOException {
         ensureOpen();
         pos = start + offset;
         in.seek(pos);
     }
 
-    /**
-     * Returns the current position in the stream, as an offset from the beginning of the stream.
-     *
-     * @return the current position in the stream
-     * @throws IOException if an I/O error occurs or the stream is closed
-     */
+    @Override
     public long getPosition() throws IOException {
         ensureOpen();
         return pos - start;
     }
 
-    /**
-     * Returns the current position in the file, as an offset from the beginning of the file.
-     *
-     * @return the current position in the file
-     * @throws IOException if an I/O error occurs
-     */
+    @Override
     public long getFilePointer() throws IOException {
         ensureOpen();
         return pos;
     }
 
+    @Override
     public long getStart() {
         return start;
     }
 
+    @Override
     public long getSize() {
         return size;
     }
 
-    /**
-     * Return a new InputStream representing a subset of the data
-     * from this InputStream, starting at <code>start</code> (inclusive)
-     * up to <code>end</code> (exclusive).  <code>start</code> must be
-     * non-negative.  If <code>end</code> is -1, the new stream ends
-     * at the same place as this stream.
-     *
-     * @param start the starting position
-     * @param end   the ending position + 1
-     * @return the new stream
-     */
-    public MimeInputStream newStream(long start, long end) throws IOException {
-        ensureOpen();
-        if (start < 0)
-            throw new IllegalArgumentException("start < 0");
-        if (end == -1)
-            end = size;
-        refCount.getAndIncrement();
-        return new MimeInputStream(in, this.start + start, end - start, refCount);
-    }
-
-    /**
-     * Reads a line of text.  A line is considered to be terminated by any one
-     * of a line feed ('\n'), a carriage return ('\r'), or a carriage return
-     * followed immediately by a linefeed.
-     * <p>
-     * 每个字节都转换为一个字符，方法是采用该字符的低八位字节值，并将该字符的高八位设置为零。
-     * 因此，此方法不支持完整的 Unicode 字符集。
-     * </p>
-     *
-     * @return A String containing the contents of the line, not including
-     * any line-termination characters, or null if the end of the
-     * stream has been reached
-     * @throws IOException If an I/O error occurs
-     */
+    @Override
     public synchronized String readLine() throws IOException {
         ensureOpen();
         long end = start + size;
@@ -177,20 +150,12 @@ public class MimeInputStream extends InputStream {
     }
 
     /**
-     * 读取一行，并转换成指定编码
+     * 从当前流中读取下一个字节的数据。
+     * 如果当前可用数据大于0，则移动文件指针到当前位置并读取一个字节。如果已到达流的末尾，则返回-1。
      *
-     * @param charset 字符串编码
-     * @return 此文件文本的下一行，如果连一个字节也没有读取就已到达文件的末尾，则返回 null。
-     * @throws IOException 如果发生 I/O 错误
+     * @return 读取的下一个字节数据，或者如果没有更多数据可读则返回-1
+     * @throws IOException 如果在读取过程中发生I/O错误
      */
-    public synchronized String readLine(Charset charset) throws IOException {
-        String line = readLine();
-        if (line == null || charset == null || StandardCharsets.ISO_8859_1.equals(charset)) {
-            return line;
-        }
-        return new String(line.getBytes(StandardCharsets.ISO_8859_1), charset);
-    }
-
     @Override
     public synchronized int read() throws IOException {
         if (available() > 0) {
@@ -205,12 +170,15 @@ public class MimeInputStream extends InputStream {
         ensureOpen();
         if ((off | len | (off + len) | (b.length - (off + len))) < 0) {
             throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
+        }
+        if (len == 0) {
             return 0;
         }
         in.seek(pos);
         int read = in.read(b, off, Math.min(available(), len));
-        pos += read;
+        if (read > 0) {
+            pos += read;
+        }
         return read;
     }
 
@@ -245,17 +213,36 @@ public class MimeInputStream extends InputStream {
         mark = pos;
     }
 
+    /**
+     * 重置当前流的位置到最近一次标记的位置。
+     * 如果之前没有调用过 {@link #mark(int)} 方法或者已经超过了读取限制，那么此方法的行为是未定义的。
+     * 在调用此方法之前会检查流是否已关闭，如果已关闭则抛出异常。
+     *
+     * @throws IOException 如果在尝试重置流位置时发生I/O错误，或者流已被关闭
+     */
     @Override
     public synchronized void reset() throws IOException {
         ensureOpen();
         pos = mark;
     }
 
+    /**
+     * 检查此输入流是否支持标记功能。
+     *
+     * @return 总是返回 true，表示此流支持标记功能
+     */
     @Override
     public boolean markSupported() {
         return true;
     }
 
+    /**
+     * 关闭此输入流并释放与此流相关的系统资源。如果底层输入流已经被关闭或当前引用计数为零，
+     * 则不会执行任何操作。否则，将减少引用计数，并在引用计数达到零时实际关闭底层输入流。
+     * 此方法是同步的，以确保线程安全。
+     *
+     * @throws IOException 如果在尝试关闭底层输入流时发生I/O错误
+     */
     @Override
     public synchronized void close() throws IOException {
         if (in == null || closed.getAndSet(true)) return;
@@ -264,6 +251,14 @@ public class MimeInputStream extends InputStream {
         }
     }
 
+    /**
+     * 强制关闭当前的输入流。此方法确保即使在引用计数不为零的情况下也会尝试关闭底层输入流。
+     * 如果引用计数大于零，则正常关闭输入流，并且任何关闭过程中抛出的异常将被传播。
+     * 如果引用计数已经为零（意味着流应该已经被关闭），则会再次尝试关闭输入流，但忽略任何可能发生的异常。
+     *
+     * @throws IOException 如果在引用计数大于零时尝试关闭输入流的过程中发生I/O错误
+     */
+    @Override
     public synchronized void forceClose() throws IOException {
         if (in == null) return;
         if (refCount.getAndSet(0) > 0) {
@@ -276,5 +271,4 @@ public class MimeInputStream extends InputStream {
             } catch (IOException ignored) {}
         }
     }
-
 }

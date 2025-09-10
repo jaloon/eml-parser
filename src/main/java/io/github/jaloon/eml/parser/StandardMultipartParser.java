@@ -1,6 +1,6 @@
 package io.github.jaloon.eml.parser;
 
-import io.github.jaloon.eml.MimeInputStream;
+import io.github.jaloon.eml.io.MimeInputStream;
 import io.github.jaloon.eml.part.MimePart;
 import io.github.jaloon.eml.part.MultiMimePart;
 import io.github.jaloon.eml.part.StandardMimePart;
@@ -64,6 +64,7 @@ class StandardMultipartParser implements MultipartParser {
         long start = -1, end = -1;
         while ((line = body.readLine()) != null) {
             if (line.isEmpty()) {
+                end = body.getPosition();
                 continue;
             }
             if (line.equals(boundaryStart)) {

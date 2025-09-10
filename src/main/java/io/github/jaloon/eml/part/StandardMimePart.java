@@ -1,6 +1,6 @@
 package io.github.jaloon.eml.part;
 
-import io.github.jaloon.eml.MimeInputStream;
+import io.github.jaloon.eml.io.MimeInputStream;
 
 import javax.mail.internet.MimeUtility;
 import java.io.IOException;
