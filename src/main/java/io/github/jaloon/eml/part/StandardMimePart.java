@@ -1,8 +1,8 @@
 package io.github.jaloon.eml.part;
 
 import io.github.jaloon.eml.io.MimeInputStream;
+import org.apache.commons.lang3.StringUtils;
 
-import javax.mail.internet.MimeUtility;
 import java.io.IOException;
 import java.util.List;
 
@@ -69,6 +69,7 @@ public class StandardMimePart extends AbstractMimePart {
         List<String> headers = MimePart.parseHeaders(in);
         MimeInputStream body = in.newStream(in.getPosition(), partEnd);
         StandardMimePart part = new StandardMimePart(headers, body);
+        String attachHeader = null;
         for (String header : headers) {
             if (header.startsWith("Content-Type:")) {
                 part.contentType = header.substring(14).trim();
@@ -80,10 +81,17 @@ public class StandardMimePart extends AbstractMimePart {
             } else if (header.startsWith("Content-Disposition: attachment;")) {
                 // Content-Disposition: inline; filename="文件名" 为插入正文的图片或 emoji 表情
                 part.attachment = true;
-                part.filename = MimeUtility.decodeText(MimePart.getHeadItem(header, "filename"));
+                attachHeader = header;
             } else if (header.startsWith("Content-Transfer-Encoding:")) {
                 part.contentTransferEncoding = header.substring(26).trim();
             }
+        }
+        if (attachHeader != null) {
+            String filename = MimePart.getHeadItem(attachHeader, "filename");
+            if (StringUtils.isBlank(filename) && StringUtils.isNotBlank(part.contentType)) {
+                filename = MimePart.getHeadItem(part.contentType, "name");
+            }
+            part.filename = filename;
         }
         return part;
     }

@@ -10,6 +10,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,15 +73,11 @@ public interface MimePart extends Closeable {
                 .filter(line -> line.startsWith("Content-Disposition:"))
                 .map(line -> getHeadItem(line, "filename"))
                 .findFirst()
-                .map(filename -> {
-                    try {
-                        return MimeUtility.decodeText(filename);
-                    } catch (UnsupportedEncodingException e) {
-                        System.err.println("Error decoding attachment filename: " + filename);
-                    }
-                    return filename;
-                })
-                .orElse(null);
+                .orElseGet(() -> getHeaders().stream()
+                        .filter(line -> line.startsWith("Content-Type:"))
+                        .map(line -> getHeadItem(line, "name"))
+                        .findFirst()
+                        .orElse(null));
     }
 
     /**
@@ -176,26 +173,102 @@ public interface MimePart extends Closeable {
     }
 
     /**
-     * 获取头部项的值
+     * 从给定的头部信息中提取指定头部项的值。
      *
-     * @param header   头部信息
-     * @param headItem 头部项
-     * @return 头部项的值
+     * @param header 完整的头部信息字符串，从中查找并提取头部项。
+     * @param headItem 要查找的头部项名称。
+     * @return 返回找到的头部项值。如果未找到匹配项，则返回空字符串。对于编码过的值，尝试解码后返回；若解码失败，则直接返回原始值。
      */
     static String getHeadItem(String header, String headItem) {
         String searchStr = headItem + '=';
         int index = header.indexOf(searchStr);
+        if (index >= 0) {
+            // Content-Disposition: attachment; filename="2(1)(1).pdf"
+            // Content-Disposition: inline; filename="=?UTF-8?B?dGVtcDRjai5naWY=?="
+            int startIndex = index + searchStr.length();
+            char startChar = header.charAt(startIndex);
+            String value;
+            if (startChar != '"' && startChar != '\'') {
+                value = header.substring(startIndex);
+            } else {
+                startIndex++;
+                int endIndex = header.indexOf(startChar, startIndex);
+                value = header.substring(startIndex, endIndex);
+            }
+            try {
+                return MimeUtility.decodeText(value);
+            } catch (UnsupportedEncodingException e) {
+                System.err.printf("Error decoding header item: %s=%s%n", headItem, value);
+                return value;
+            }
+        }
+
+        searchStr = headItem + '*';
+        index = header.indexOf(searchStr);
         if (index < 0) {
             return StringUtils.EMPTY;
         }
         int startIndex = index + searchStr.length();
-        char startChar = header.charAt(startIndex);
-        if (startChar != '"' && startChar != '\'') {
-            return header.substring(startIndex);
+        if (header.charAt(startIndex++) == '=') {
+            // Content-Disposition: attachment; filename*=UTF-8''%33%E5%AF%86%E6%96%87%63%76%2E%74%78%74
+            int endIndex = header.indexOf(';', startIndex);
+            if (endIndex < 0) {
+                endIndex = header.length();
+            }
+            int charsetIndex = header.indexOf("''", startIndex);
+            if (charsetIndex < 0) {
+                return header.substring(startIndex, endIndex);
+            }
+            String charset = header.substring(startIndex, charsetIndex);
+            String value = header.substring(charsetIndex + 2, endIndex);
+            try {
+                return URLDecoder.decode(value, charset);
+            } catch (UnsupportedEncodingException e) {
+                System.err.printf("Error decoding header item: %s=%s%n", headItem, value);
+                return value;
+            }
         }
-        startIndex++;
-        int endIndex = header.indexOf(startChar, startIndex);
-        return header.substring(startIndex, endIndex);
+        if (header.charAt(startIndex - 1) == '0' && header.charAt(startIndex++) == '*' && header.charAt(startIndex++) == '=') {
+            // Content-Disposition: attachment;
+            //  filename*0*=UTF-8''%32%E5%AF%86%E6%96%87%E5%A4%8D%E5%88%B6%E7%B2%98;
+            //  filename*1*=%E8%B4%B4%2E%74%78%74
+            int charsetIndex = header.indexOf("''", startIndex);
+            String charset = null;
+            if (charsetIndex > 0) {
+                charset = header.substring(startIndex, charsetIndex);
+                startIndex = charsetIndex + 2;
+            }
+            int endIndex = header.indexOf(';', startIndex);
+            String value;
+            if (endIndex < 0) {
+                value = header.substring(startIndex);
+            } else {
+                StringBuilder valueBuilder = new StringBuilder(header.substring(startIndex, endIndex));
+                for (; ; ) {
+                    startIndex = header.indexOf(searchStr, endIndex);
+                    if (startIndex < 0) {
+                        break;
+                    }
+                    startIndex += searchStr.length() + 3;
+                    endIndex = header.indexOf(';', startIndex);
+                    if (endIndex < 0) {
+                        valueBuilder.append(header.substring(startIndex));
+                        break;
+                    }
+                    valueBuilder.append(header, startIndex, endIndex);
+                }
+                value = valueBuilder.toString();
+            }
+            if (charset != null) {
+                try {
+                    return URLDecoder.decode(value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    System.err.printf("Error decoding header item: %s=%s%n", headItem, value);
+                }
+            }
+            return value;
+        }
+        return StringUtils.EMPTY;
     }
 
 }
