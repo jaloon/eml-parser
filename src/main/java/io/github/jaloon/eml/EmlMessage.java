@@ -3,8 +3,8 @@ package io.github.jaloon.eml;
 import io.github.jaloon.eml.io.MimeInputStream;
 import io.github.jaloon.eml.part.MimePart;
 import io.github.jaloon.eml.part.MultiMimePart;
+import jakarta.mail.internet.MimeUtility;
 
-import javax.mail.internet.MimeUtility;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

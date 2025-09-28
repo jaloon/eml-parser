@@ -1,11 +1,11 @@
 package io.github.jaloon.eml.part;
 
 import io.github.jaloon.eml.io.MimeInputStream;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimePartDataSource;
+import jakarta.mail.internet.MimeUtility;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.mail.MessagingException;
-import javax.mail.internet.MimePartDataSource;
-import javax.mail.internet.MimeUtility;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;

@@ -2,15 +2,15 @@ package io.github.jaloon.eml;
 
 import io.github.jaloon.eml.parser.MultipartParser;
 import io.github.jaloon.eml.part.MimePart;
+import jakarta.mail.BodyPart;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeUtility;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.mail.BodyPart;
-import javax.mail.MessagingException;
-import javax.mail.Multipart;
-import javax.mail.Part;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeUtility;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
