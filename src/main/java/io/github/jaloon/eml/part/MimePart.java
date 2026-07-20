@@ -173,28 +173,44 @@ public interface MimePart extends Closeable {
     }
 
     /**
-     * 从给定的头部信息中提取指定头部项的值。
+     * 从 MIME 头部字符串中提取指定参数的值。
+     * <p>
+     * 支持三种参数格式：
+     * <ol>
+     *   <li>标准格式：{@code param=value} 或 {@code param="value"}，值经 {@link MimeUtility#decodeText} 解码</li>
+     *   <li>RFC 2231 单值编码：{@code param*=charset''encoded-value}，值经 {@link URLDecoder} 解码</li>
+     *   <li>RFC 2231 多段编码：{@code param*0*=charset''part1; param*1*=part2; ...}，拼接后解码</li>
+     * </ol>
      *
      * @param header 完整的头部信息字符串，从中查找并提取头部项。
-     * @param headItem 要查找的头部项名称。
+     * @param headItem 要查找的头部项名称（如 "boundary"、"filename"、"name"）。
      * @return 返回找到的头部项值。如果未找到匹配项，则返回空字符串。对于编码过的值，尝试解码后返回；若解码失败，则直接返回原始值。
      */
     static String getHeadItem(String header, String headItem) {
+        // ===== 分支1：标准格式 param=value =====
         String searchStr = headItem + '=';
         int index = header.indexOf(searchStr);
         if (index >= 0) {
             // Content-Disposition: attachment; filename="2(1)(1).pdf"
             // Content-Disposition: inline; filename="=?UTF-8?B?dGVtcDRjai5naWY=?="
+            // 找到 "filename="，跳过等号
             int startIndex = index + searchStr.length();
+            if (startIndex >= header.length()) {
+                return StringUtils.EMPTY;
+            }
             char startChar = header.charAt(startIndex);
             String value;
             if (startChar != '"' && startChar != '\'') {
-                value = header.substring(startIndex);
+                // 非引号包裹：取到下一个分号或行尾，trim 尾部空格
+                int semi = header.indexOf(';', startIndex);
+                value = semi < 0 ? header.substring(startIndex).trim() : header.substring(startIndex, semi).trim();
             } else {
+                // 引号包裹：跳过起始引号，匹配结束引号
                 startIndex++;
                 int endIndex = header.indexOf(startChar, startIndex);
                 value = header.substring(startIndex, endIndex);
             }
+            // 经 MIME 编码解码（如 =?UTF-8?B?...?=），失败则打印 stderr 并返回原文
             try {
                 return MimeUtility.decodeText(value);
             } catch (UnsupportedEncodingException e) {
@@ -203,24 +219,32 @@ public interface MimePart extends Closeable {
             }
         }
 
+        // ===== 分支2：RFC 2231 编码格式 param*=... =====
         searchStr = headItem + '*';
         index = header.indexOf(searchStr);
         if (index < 0) {
             return StringUtils.EMPTY;
         }
         int startIndex = index + searchStr.length();
-        if (header.charAt(startIndex++) == '=') {
+        if (startIndex >= header.length()) {
+            return StringUtils.EMPTY;
+        }
+        // 子分支2a：param*=charset''value（*后直接跟=，单段编码）
+        if (header.charAt(startIndex) == '=') {
+            startIndex++;
             // Content-Disposition: attachment; filename*=UTF-8''%33%E5%AF%86%E6%96%87%63%76%2E%74%78%74
             int endIndex = header.indexOf(';', startIndex);
             if (endIndex < 0) {
                 endIndex = header.length();
             }
             int charsetIndex = header.indexOf("''", startIndex);
+            // 缺少 '' 分隔符时退化为原文返回
             if (charsetIndex < 0) {
                 return header.substring(startIndex, endIndex);
             }
             String charset = header.substring(startIndex, charsetIndex);
             String value = header.substring(charsetIndex + 2, endIndex);
+            // URL 解码，失败则打印 stderr 并返回原文
             try {
                 return URLDecoder.decode(value, charset);
             } catch (UnsupportedEncodingException e) {
@@ -228,13 +252,20 @@ public interface MimePart extends Closeable {
                 return value;
             }
         }
-        if (header.charAt(startIndex - 1) == '0' && header.charAt(startIndex++) == '*' && header.charAt(startIndex++) == '=') {
+        // 子分支2b：headItem*0*=charset''part1; headItem*1*=part2（多段编码）
+        if (startIndex + 2 < header.length()
+                && header.charAt(startIndex) == '0'
+                && header.charAt(startIndex + 1) == '*'
+                && header.charAt(startIndex + 2) == '=') {
+            startIndex += 3;
             // Content-Disposition: attachment;
             //  filename*0*=UTF-8''%32%E5%AF%86%E6%96%87%E5%A4%8D%E5%88%B6%E7%B2%98;
             //  filename*1*=%E8%B4%B4%2E%74%78%74
             int charsetIndex = header.indexOf("''", startIndex);
             String charset = null;
-            if (charsetIndex > 0) {
+            int semiForCharset = header.indexOf(';', startIndex);
+            // 提取 charset：需先于分号出现，否则不视为有效编码
+            if (charsetIndex > 0 && (semiForCharset < 0 || charsetIndex < semiForCharset)) {
                 charset = header.substring(startIndex, charsetIndex);
                 startIndex = charsetIndex + 2;
             }
@@ -244,6 +275,7 @@ public interface MimePart extends Closeable {
                 value = header.substring(startIndex);
             } else {
                 StringBuilder valueBuilder = new StringBuilder(header.substring(startIndex, endIndex));
+                // 循环查找后续段（headItem*1*, headItem*2*...），拼接值部分
                 for (; ; ) {
                     startIndex = header.indexOf(searchStr, endIndex);
                     if (startIndex < 0) {
@@ -259,6 +291,7 @@ public interface MimePart extends Closeable {
                 }
                 value = valueBuilder.toString();
             }
+            // 有 charset 则 URL 解码，失败则打印 stderr 并返回拼接原文
             if (charset != null) {
                 try {
                     return URLDecoder.decode(value, charset);

@@ -36,4 +36,16 @@ public interface MultipartParser {
     static MultipartParser standard() {
         return StandardMultipartParser.getInstance();
     }
+
+    /**
+     * 返回一个专注于快速提取附件的解析器实例。
+     * <p>
+     * 该解析器跳过非附件的 MIME 部分，仅解析头部信息来判断是否为附件，
+     * 适用于只需要提取附件而不关心正文内容的场景。
+     *
+     * @return 快速附件提取的 MultipartParser 实例
+     */
+    static MultipartParser quickly() {
+        return QuicklyAttachmentParser.getInstance();
+    }
 }

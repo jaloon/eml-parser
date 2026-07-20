@@ -1,5 +1,6 @@
 package io.github.jaloon.eml;
 
+import io.github.jaloon.eml.io.ByteArrayMimeInputStream;
 import io.github.jaloon.eml.io.MimeInputStream;
 import io.github.jaloon.eml.part.MimePart;
 import io.github.jaloon.eml.part.MultiMimePart;
@@ -92,6 +93,36 @@ public class EmlMessage extends MultiMimePart {
     }
 
     /**
+     * 从内存字节数组创建一个 EmlMessage 对象。
+     * <p>
+     * 适用于已将邮件文件一次性读入内存的场景（如通过 {@code Files.readAllBytes()} 读取网络路径文件）。
+     * 内部使用 {@link ByteArrayMimeInputStream} 实现零拷贝内存解析，
+     * 避免 {@link java.io.RandomAccessFile} 对网络路径的逐字节 seek + read 性能瓶颈。
+     * <p>
+     * 典型用法：
+     * <pre>{@code
+     * byte[] data = Files.readAllBytes(Paths.get(emlPath));
+     * EmlMessage message = EmlMessage.of(data);
+     * List<MimePart> parts = MultipartParser.quickly().parse(message);
+     * }</pre>
+     *
+     * @param data 包含完整邮件内容的字节数组
+     * @return 新创建的 EmlMessage 对象
+     * @throws IOException 如果解析邮件头部时发生 I/O 错误
+     * @see #of(File) 从本地文件创建（使用 RandomAccessFile）
+     */
+    public static EmlMessage of(byte[] data) throws IOException {
+        ByteArrayMimeInputStream inputStream = new ByteArrayMimeInputStream(data);
+        List<String> headers = MimePart.parseHeaders(inputStream);
+        long headerEnd = inputStream.getPosition();
+        MimeInputStream body = inputStream.newStream(headerEnd, data.length);
+        EmlMessage emlMessage = new EmlMessage(headers, body);
+        emlMessage.size = data.length;
+        parseHeaders(emlMessage, headers);
+        return emlMessage;
+    }
+
+    /**
      * 从给定的文件中创建一个 EmlMessage 对象。
      *
      * @param file 包含电子邮件消息的文件
@@ -104,6 +135,18 @@ public class EmlMessage extends MultiMimePart {
         MimeInputStream body = inputStream.newStream(inputStream.getPosition(), file.length());
         EmlMessage emlMessage = new EmlMessage(headers, body);
         emlMessage.size = file.length();
+        parseHeaders(emlMessage, headers);
+        return emlMessage;
+    }
+
+    /**
+     * 从邮件头部列表中解析发件人、收件人和主题信息，并设置到指定的 EmlMessage 对象上。
+     *
+     * @param emlMessage 要设置属性的 EmlMessage 对象
+     * @param headers    邮件头部信息列表
+     * @throws IOException 如果解码主题时发生异常
+     */
+    private static void parseHeaders(EmlMessage emlMessage, List<String> headers) throws IOException {
         int parseCount = 0;
         for (String header : headers) {
             if (header.startsWith("From:")) {
@@ -120,7 +163,6 @@ public class EmlMessage extends MultiMimePart {
                 break;
             }
         }
-        return emlMessage;
     }
 
     /**
